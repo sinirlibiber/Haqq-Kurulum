@@ -1,5 +1,4 @@
 
-![](https://i.hizliresim.com/vedwvya.png)
 
 # Haqq Installation Guide
 ## Hardware Requirements
