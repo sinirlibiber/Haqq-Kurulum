@@ -1,79 +1,57 @@
-#!/usr/bin/env bash
+#!/bin/bash
+echo -e "\033[0;31m"
+echo "==================================================";
+echo "     █▀▀▀ █░░█ █▀▄▀█ █░░█ █▀▀ █▀▀▄ █▀▀ █░░█       ";
+echo "     █░▀█ █░░█ █░▀░█ █░░█ ▀▀█ █▀▀▄ █▀▀ █▄▄█ 		";
+echo "     ▀▀▀▀ ░▀▀▀ ▀░░░▀ ░▀▀▀ ▀▀▀ ▀▀▀░ ▀▀▀ ▄▄▄█    	";
+echo -e "\e[0m"
+echo "=================================================="                                  
 
-read -p "Enter bond_denom value, for example, ubld for Agoric: " BOND_DENOM
-read -p "Enter bench_prefix value, for example, agoric for Agoric: " BENCH_PREFIX
-read -p "Enter rpc_port value or hit Enter for default port [26657]: " RPC_PORT
-RPC_PORT=${RPC_PORT:-26657}
-read -p "Enter grpc_port value or hit Enter for default port [9090]: " GRPC_PORT
-GRPC_PORT=${GRPC_PORT:-9090}
+sleep 2
 
-echo '================================================='
-echo -e "bond_denom: \e[1m\e[32m$BOND_DENOM\e[0m"
-echo -e "bench_prefix: \e[1m\e[32m$BENCH_PREFIX\e[0m"
-echo -e "rpc_port: \e[1m\e[32m$RPC_PORT\e[0m"
-echo -e "grpc_port: \e[1m\e[32m$GRPC_PORT\e[0m"
-echo '================================================='
-sleep 3
+echo -e "\e[1m\e[32m1. Updating dependencies... \e[0m" && sleep 1
+sudo apt-get update
 
-echo -e "\e[1m\e[32m1. Installing cosmos-exporter... \e[0m" && sleep 1
-# install cosmos-exporter
-wget https://github.com/solarlabsteam/cosmos-exporter/releases/download/v0.2.2/cosmos-exporter_0.2.2_Linux_x86_64.tar.gz
-tar xvfz cosmos-exporter*
-sudo cp ./cosmos-exporter /usr/bin
-rm cosmos-exporter* -rf
+echo "=================================================="
 
-sudo useradd -rs /bin/false cosmos_exporter
+echo -e "\e[1m\e[32m2. Installing required dependencies... \e[0m" && sleep 1
+sudo apt install jq -y
+sudo apt install python3-pip -y
+sudo pip install yq
 
-sudo tee <<EOF >/dev/null /etc/systemd/system/cosmos-exporter.service
-[Unit]
-Description=Cosmos Exporter
-After=network-online.target
+echo "=================================================="
 
-[Service]
-User=cosmos_exporter
-Group=cosmos_exporter
-TimeoutStartSec=0
-CPUWeight=95
-IOWeight=95
-ExecStart=cosmos-exporter --denom ${BOND_DENOM} --denom-coefficient 1000000 --bech-prefix ${BENCH_PREFIX} --tendermint-rpc http://localhost:${RPC_PORT} --node localhost:${GRPC_PORT}
-Restart=always
-RestartSec=2
-LimitNOFILE=800000
-KillSignal=SIGTERM
+echo -e "\e[1m\e[32m3. Checking if Docker is installed... \e[0m" && sleep 1
 
-[Install]
-WantedBy=multi-user.target
-EOF
+if ! command -v docker &> /dev/null
+then
+    echo -e "\e[1m\e[32m3.1 Installing Docker... \e[0m" && sleep 1
+    sudo apt-get install ca-certificates curl gnupg lsb-release wget -y
+    curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg
+    sudo chmod a+r /usr/share/keyrings/docker-archive-keyring.gpg
+    echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+    sudo apt-get update
+    sudo apt-get install docker-ce docker-ce-cli containerd.io -y
+fi
 
-echo -e "\e[1m\e[32m2. Installing node-exporter... \e[0m" && sleep 1
-# install node-exporter
-wget https://github.com/prometheus/node_exporter/releases/download/v1.3.1/node_exporter-1.3.1.linux-amd64.tar.gz
-tar xvfz node_exporter-*.*-amd64.tar.gz
-sudo mv node_exporter-*.*-amd64/node_exporter /usr/local/bin/
-rm node_exporter-* -rf
+echo "=================================================="
 
-sudo useradd -rs /bin/false node_exporter
+echo -e "\e[1m\e[32m4. Checking if Docker Compose is installed ... \e[0m" && sleep 1
 
-sudo tee <<EOF >/dev/null /etc/systemd/system/node_exporter.service
-[Unit]
-Description=Node Exporter
-After=network.target
+docker-compose version
+if [ $? -ne 0 ]
+then
+    echo -e "\e[1m\e[32m4.1 Installing Docker Compose... \e[0m" && sleep 1
+	docker_compose_version=$(wget -qO- https://api.github.com/repos/docker/compose/releases/latest | jq -r ".tag_name")
+	sudo wget -O /usr/bin/docker-compose "https://github.com/docker/compose/releases/download/${docker_compose_version}/docker-compose-`uname -s`-`uname -m`"
+	sudo chmod +x /usr/bin/docker-compose
+fi
 
-[Service]
-User=node_exporter
-Group=node_exporter
-Type=simple
-ExecStart=/usr/local/bin/node_exporter
+echo "=================================================="
 
-[Install]
-WantedBy=multi-user.target
-EOF
+echo -e "\e[1m\e[32m5. Downloading Node Monitoring config files ... \e[0m" && sleep 1
+cd $HOME
+rm -rf cosmos_node_monitoring
+git clone https://github.com/sinirlibiber/HAQQREHBER/tree/main/HAQQ%20MONITOR/cosmos_node_monitoring-master
 
-sudo systemctl daemon-reload
-sudo systemctl enable cosmos-exporter
-sudo systemctl start cosmos-exporter
-sudo systemctl enable node_exporter
-sudo systemctl start node_exporter
-
-echo -e "\e[1m\e[32mInstallation finished... \e[0m" && sleep 1
-echo -e "\e[1m\e[32mPlease make sure ports 9100 and 9300 are open \e[0m" && sleep 1
+chmod +x $HOME/cosmos_node_monitoring/add_validator.sh
